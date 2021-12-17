@@ -1,1 +1,3 @@
 # DIAscope
+
+![](img/diascope.jpg)
