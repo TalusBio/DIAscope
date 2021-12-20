@@ -1,5 +1,6 @@
 "src/diascope/helpers.py"
 import re
+import struct
 from collections import defaultdict
 
 
@@ -26,3 +27,8 @@ def etree_to_dict(t):
         else:
             d[parsed_tag] = text
     return d
+
+
+def array_pack(arr, byte_order='>', format_character='f'):
+    data_format = byte_order + format_character
+    return b''.join(struct.pack(data_format, i) for i in arr)

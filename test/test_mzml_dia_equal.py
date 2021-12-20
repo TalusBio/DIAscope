@@ -9,7 +9,7 @@ from src.diascope.parse import parse_metadata, parse_spectra, parse_precursor, p
 
 DATA_DIR = Path(__file__).resolve().parent.joinpath("data")
 
-FILE_NAME = "small"
+FILE_NAME = "23aug2017_hela_serum_timecourse_pool_wide_001"
 MZML_PATH = DATA_DIR.joinpath(f"{FILE_NAME}.mzML")
 DIA_PATH = DATA_DIR.joinpath(f"{FILE_NAME}.dia")
 
@@ -29,9 +29,6 @@ def test_mzml_dia_precursor_equal():
 
     dia_precursor = pd.read_sql_query(sql="SELECT * FROM precursor;", con=dia_connection)
     mzml_precursor = parse_precursor(mzml_file)
-
-    dia_precursor = dia_precursor.drop(["MassArray", "IntensityArray"], axis=1)
-    mzml_precursor = mzml_precursor.drop(["MassArray", "IntensityArray"], axis=1)
     
     pd.testing.assert_frame_equal(dia_precursor, mzml_precursor)
 
@@ -43,9 +40,6 @@ def test_mzml_dia_spectra_equal():
     dia_spectra = pd.read_sql_query(sql="SELECT * FROM spectra;", con=dia_connection)
     mzml_spectra = parse_spectra(mzml_file)
     
-    dia_spectra = dia_spectra.drop(["MassArray", "IntensityArray"], axis=1)
-    mzml_spectra = mzml_spectra.drop(["MassArray", "IntensityArray"], axis=1)
-
     pd.testing.assert_frame_equal(dia_spectra, mzml_spectra)
 
 

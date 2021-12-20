@@ -4,10 +4,11 @@ import zlib
 from statistics import mean
 
 from lxml import etree
+from numpy import array
 import pandas as pd
 from pyteomics.mzml import MzML
 
-from .helpers import etree_to_dict
+from .helpers import etree_to_dict, array_pack
 
 MULTI_INSTRUMENT_DELIMITER = "[MULTI-INSTRUMENT-DELIMITER]"
 INSTRUMENT_ID_COMPONENT_DELIMITER = "[INSTRUMENT-ID-COMPONENT-DELIMITER]"
@@ -52,7 +53,9 @@ def parse_spectra(mzml_file):
     spectra_list = []
     for spectrum in mzml_file:
         if spectrum["ms level"] > 1:
-            # TODO: fix mass and intensity array encoding
+            packed_mz_arr = array_pack(spectrum["m/z array"], format_character='d')
+            packed_intensity_arr = array_pack(spectrum["intensity array"], format_character='f')
+
             isolation_window_center = spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window target m/z"]
             spectrum_dict = dict(
                 Fraction=0,
@@ -64,10 +67,10 @@ def parse_spectra(mzml_file):
                 IsolationWindowLower=isolation_window_center - spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window lower offset"],
                 IsolationWindowCenter=isolation_window_center,
                 IsolationWindowUpper=isolation_window_center + spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window upper offset"],
-                MassEncodedLength=len(bytearray(spectrum["m/z array"])),
-                MassArray=zlib.compress(bytearray(spectrum["m/z array"])),
-                IntensityEncodedLength=len(bytearray(spectrum["intensity array"])),
-                IntensityArray=zlib.compress(bytearray(spectrum["intensity array"])),
+                MassEncodedLength=len(packed_mz_arr),
+                MassArray=zlib.compress(packed_mz_arr),
+                IntensityEncodedLength=len(packed_intensity_arr),
+                IntensityArray=zlib.compress(packed_intensity_arr),
             )
             spectra_list.append(spectrum_dict)
     return pd.DataFrame(spectra_list)
@@ -77,7 +80,9 @@ def parse_precursor(mzml_file):
     precursor_list = []
     for spectrum in mzml_file:
         if spectrum["ms level"] == 1:
-            # TODO: fix mass and intensity array encoding; decode their version and reencode it
+            packed_mz_arr = array_pack(spectrum["m/z array"], format_character='d')
+            packed_intensity_arr = array_pack(spectrum["intensity array"], format_character='f')
+
             precursor_dict = dict(
                 Fraction=0,
                 SpectrumName=spectrum["id"],
@@ -86,10 +91,10 @@ def parse_precursor(mzml_file):
                 IonInjectionTime=-1.0,
                 IsolationWindowLower=spectrum["scanList"]["scan"][0]["scanWindowList"]["scanWindow"][0]["scan window lower limit"],
                 IsolationWindowUpper=spectrum["scanList"]["scan"][0]["scanWindowList"]["scanWindow"][0]["scan window upper limit"],
-                MassEncodedLength=len(bytearray(spectrum["m/z array"])),
-                MassArray=zlib.compress(bytearray(spectrum["m/z array"])),
-                IntensityEncodedLength=len(bytearray(spectrum["intensity array"])),
-                IntensityArray=zlib.compress(bytearray(spectrum["intensity array"])),
+                MassEncodedLength=len(packed_mz_arr),
+                MassArray=zlib.compress(packed_mz_arr),
+                IntensityEncodedLength=len(packed_intensity_arr),
+                IntensityArray=zlib.compress(packed_intensity_arr),
                 TIC=spectrum["total ion current"],
             )
             precursor_list.append(precursor_dict)
