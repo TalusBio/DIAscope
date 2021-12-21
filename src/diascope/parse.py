@@ -16,6 +16,37 @@ INSTRUMENT_ID_COMPONENT_DELIMITER = "[INSTRUMENT-ID-COMPONENT-DELIMITER]"
 mzml_file = MzML("/Users/ricomeinl/Desktop/talus/DIAscope/test/data/small.mzML")
 
 
+def get_list_from_obj(list_obj, target_name):
+    count = list_obj.get("count", 0)
+    return [list_obj[target_name][i] for i in range(count)]
+
+
+def get_scan_times(scan_list, time_type, unit_multiplier=1.0, default_val=-1.0):
+    scan_list_objs = get_list_from_obj(scan_list, target_name="scan")
+    scan_times = [scan_obj.get(time_type) for scan_obj in scan_list_objs]
+    return [scan_t * unit_multiplier if scan_t else default_val for scan_t in scan_times]
+
+
+def get_isolation_windows(precursor_list):
+    def extract_window(window_obj):
+        center = window_obj.get("isolation window target m/z", 0.0)
+        lower = center - window_obj.get("isolation window lower offset", 0.0)
+        upper = center + window_obj.get("isolation window upper offset", 0.0)
+        return (center, lower, upper)
+    precursor_objs = get_list_from_obj(precursor_list, target_name="precursor")
+    return [extract_window(precursor_obj.get("isolationWindow")) for precursor_obj in precursor_objs]
+
+
+def get_scan_windows(scan_window_list):
+    def extract_window(window_obj):
+        lower = window_obj.get("scan window lower limit", 0.0)
+        upper = window_obj.get("scan window upper limit", 0.0)
+        return (lower, upper)
+    scan_list_objs = [scan_list_obj.get("scanWindowList") for scan_list_obj in get_list_from_obj(scan_window_list, target_name="scan")]
+    scan_window_objs = [get_list_from_obj(scan_list, target_name="scanWindow") for scan_list in scan_list_objs]
+    return [[extract_window(scan_window) for scan_window in scan_window_obj_list] for scan_window_obj_list in scan_window_objs]
+
+
 def parse_metadata(mzml_path):
     tree = etree.parse(mzml_path)
     metadata_list = []
@@ -52,21 +83,24 @@ def parse_metadata(mzml_path):
 def parse_spectra(mzml_file):
     spectra_list = []
     for spectrum in mzml_file:
-        if spectrum["ms level"] > 1:
-            packed_mz_arr = array_pack(spectrum["m/z array"], format_character='d')
-            packed_intensity_arr = array_pack(spectrum["intensity array"], format_character='f')
-
-            isolation_window_center = spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window target m/z"]
+        if spectrum.get("ms level", 0) > 1:
+            packed_mz_arr = array_pack(spectrum.get("m/z array"), format_character='d')
+            packed_intensity_arr = array_pack(spectrum.get("intensity array"), format_character='f')
+            scan_start_time = get_scan_times(scan_list=spectrum.get("scanList"), time_type="scan start time", unit_multiplier=60.0)[0]
+            ion_injection_time = get_scan_times(scan_list=spectrum.get("scanList"), time_type="ion injection time", unit_multiplier=0.001)[0]
+            iso_window_center, iso_window_lower, iso_window_upper = get_isolation_windows(precursor_list=spectrum.get("precursorList"))[0]
+            precursor_name = [precursor_obj.get("spectrumRef") for precursor_obj in get_list_from_obj(spectrum.get("precursorList"), target_name="precursor")][0]
+            
             spectrum_dict = dict(
                 Fraction=0,
-                SpectrumName=spectrum["id"],
-                PrecursorName=spectrum["precursorList"]["precursor"][0]["spectrumRef"],
-                SpectrumIndex=spectrum["index"],
-                ScanStartTime=spectrum["scanList"]["scan"][0]["scan start time"]*60,
-                IonInjectionTime=-1.0,
-                IsolationWindowLower=isolation_window_center - spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window lower offset"],
-                IsolationWindowCenter=isolation_window_center,
-                IsolationWindowUpper=isolation_window_center + spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window upper offset"],
+                SpectrumName=spectrum.get("id"),
+                PrecursorName=precursor_name,
+                SpectrumIndex=spectrum.get("index"),
+                ScanStartTime=scan_start_time,
+                IonInjectionTime=ion_injection_time,
+                IsolationWindowLower=iso_window_lower,
+                IsolationWindowCenter=iso_window_center,
+                IsolationWindowUpper=iso_window_upper,
                 MassEncodedLength=len(packed_mz_arr),
                 MassArray=zlib.compress(packed_mz_arr),
                 IntensityEncodedLength=len(packed_intensity_arr),
@@ -79,23 +113,26 @@ def parse_spectra(mzml_file):
 def parse_precursor(mzml_file):
     precursor_list = []
     for spectrum in mzml_file:
-        if spectrum["ms level"] == 1:
-            packed_mz_arr = array_pack(spectrum["m/z array"], format_character='d')
-            packed_intensity_arr = array_pack(spectrum["intensity array"], format_character='f')
+        if spectrum.get("ms level", 0) == 1:
+            packed_mz_arr = array_pack(spectrum.get("m/z array"), format_character='d')
+            packed_intensity_arr = array_pack(spectrum.get("intensity array"), format_character='f')
+            scan_start_time = get_scan_times(scan_list=spectrum.get("scanList"), time_type="scan start time", unit_multiplier=60.0)[0]
+            ion_injection_time = get_scan_times(scan_list=spectrum.get("scanList"), time_type="ion injection time", unit_multiplier=0.001)[0]
+            scan_window_lower, scan_window_upper = get_scan_windows(scan_window_list=spectrum.get("scanList"))[0][0]
 
             precursor_dict = dict(
                 Fraction=0,
-                SpectrumName=spectrum["id"],
-                SpectrumIndex=spectrum["index"],
-                ScanStartTime=spectrum["scanList"]["scan"][0]["scan start time"]*60,
-                IonInjectionTime=-1.0,
-                IsolationWindowLower=spectrum["scanList"]["scan"][0]["scanWindowList"]["scanWindow"][0]["scan window lower limit"],
-                IsolationWindowUpper=spectrum["scanList"]["scan"][0]["scanWindowList"]["scanWindow"][0]["scan window upper limit"],
+                SpectrumName=spectrum.get("id"),
+                SpectrumIndex=spectrum.get("index"),
+                ScanStartTime=scan_start_time,
+                IonInjectionTime=ion_injection_time,
+                IsolationWindowLower=scan_window_lower,
+                IsolationWindowUpper=scan_window_upper,
                 MassEncodedLength=len(packed_mz_arr),
                 MassArray=zlib.compress(packed_mz_arr),
                 IntensityEncodedLength=len(packed_intensity_arr),
                 IntensityArray=zlib.compress(packed_intensity_arr),
-                TIC=spectrum["total ion current"],
+                TIC=spectrum.get("total ion current"),
             )
             precursor_list.append(precursor_dict)
     return pd.DataFrame(precursor_list)
@@ -106,12 +143,11 @@ def parse_ranges(mzml_file):
 
     ranges_dict = {}
     for spectrum in mzml_file:
-        if spectrum["ms level"] > 1:
-            isolation_window_center = spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window target m/z"]
-            range_start = isolation_window_center - spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window lower offset"]
-            range_stop = isolation_window_center + spectrum["precursorList"]["precursor"][0]["isolationWindow"]["isolation window upper offset"]
-            range_ = (range_start, range_stop)
-            ranges_dict[range_] = ranges_dict.get(range_, []) + [spectrum["scanList"]["scan"][0]["scan start time"]*60]
+        if spectrum.get("ms level", 0) > 1:
+            _, iso_window_lower, iso_window_upper = get_isolation_windows(precursor_list=spectrum.get("precursorList"))[0]
+            range_ = (iso_window_lower, iso_window_upper)
+            scan_start_time = get_scan_times(scan_list=spectrum.get("scanList"), time_type="scan start time", unit_multiplier=60.0)[0]
+            ranges_dict[range_] = ranges_dict.get(range_, []) + [scan_start_time]
 
     ranges_list = []
     for (range_start, range_stop), rts in ranges_dict.items():

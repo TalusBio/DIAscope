@@ -9,7 +9,7 @@ from src.diascope.parse import parse_metadata, parse_spectra, parse_precursor, p
 
 DATA_DIR = Path(__file__).resolve().parent.joinpath("data")
 
-FILE_NAME = "23aug2017_hela_serum_timecourse_pool_wide_001"
+FILE_NAME = "small"
 MZML_PATH = DATA_DIR.joinpath(f"{FILE_NAME}.mzML")
 DIA_PATH = DATA_DIR.joinpath(f"{FILE_NAME}.dia")
 
