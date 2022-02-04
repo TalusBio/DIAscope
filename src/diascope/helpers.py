@@ -1,7 +1,21 @@
 "src/diascope/helpers.py"
 import re
 import struct
+import sqlite3
 from collections import defaultdict
+
+import numpy as np
+
+
+def create_connection(db_file):
+    """Create connection to an sqlite database specified by db_file."""
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Exception as e:
+        print(e)
+
+    return conn
 
 
 def etree_to_dict(t):
@@ -32,3 +46,8 @@ def etree_to_dict(t):
 def array_pack(arr, byte_order='>', format_character='f'):
     data_format = byte_order + format_character
     return b''.join(struct.pack(data_format, i) for i in arr)
+
+
+def array_unpack(byte_string, byte_order='>', format_character='f'):
+    data_format = byte_order + format_character
+    return np.array(list(struct.iter_unpack(data_format, byte_string)))

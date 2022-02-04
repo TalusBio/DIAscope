@@ -153,5 +153,7 @@ cython_debug/
 
 .DS_Store
 
-test/data/23aug2017_hela_serum_timecourse_pool_wide_001.mzML
-test/data/23aug2017_hela_serum_timecourse_pool_wide_001.dia
+tests/data/*.mzML
+tests/data/*.dia
+tests/data/*.csv
+tests/data/*.tsv

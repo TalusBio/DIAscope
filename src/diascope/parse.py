@@ -4,7 +4,6 @@ import zlib
 from statistics import mean
 
 from lxml import etree
-from numpy import array
 import pandas as pd
 from pyteomics.mzml import MzML
 
@@ -12,8 +11,6 @@ from .helpers import etree_to_dict, array_pack
 
 MULTI_INSTRUMENT_DELIMITER = "[MULTI-INSTRUMENT-DELIMITER]"
 INSTRUMENT_ID_COMPONENT_DELIMITER = "[INSTRUMENT-ID-COMPONENT-DELIMITER]"
-
-mzml_file = MzML("/Users/ricomeinl/Desktop/talus/DIAscope/test/data/small.mzML")
 
 
 def get_list_from_obj(list_obj, target_name):
@@ -57,6 +54,8 @@ def parse_metadata(mzml_path):
     instrument_nodes = etree_to_dict([elem for elem in tree.getroot()[0] if "instrument" in str(elem)][0])
     instrument_str = ""
     for instrument in instrument_nodes["instrumentConfigurationList"]["instrumentConfiguration"]:
+        if isinstance(instrument, str):
+            continue
         instrument_str += f"configurationId:{instrument.get('id', 'null')},"
         instrument_str += f"accession:{instrument.get('accession', 'null')},"
         instrument_str += f"name:{instrument.get('name', 'null')}"
@@ -80,9 +79,10 @@ def parse_metadata(mzml_path):
     return pd.DataFrame(metadata_list, columns=["Key", "Value"])
 
 
-def parse_spectra(mzml_file):
+def parse_spectra(mzml_path):
+    mzml_obj = MzML(mzml_path)
     spectra_list = []
-    for spectrum in mzml_file:
+    for spectrum in mzml_obj:
         if spectrum.get("ms level", 0) > 1:
             packed_mz_arr = array_pack(spectrum.get("m/z array"), format_character='d')
             packed_intensity_arr = array_pack(spectrum.get("intensity array"), format_character='f')
@@ -110,9 +110,10 @@ def parse_spectra(mzml_file):
     return pd.DataFrame(spectra_list)
 
 
-def parse_precursor(mzml_file):
+def parse_precursor(mzml_path):
+    mzml_obj = MzML(mzml_path)
     precursor_list = []
-    for spectrum in mzml_file:
+    for spectrum in mzml_obj:
         if spectrum.get("ms level", 0) == 1:
             packed_mz_arr = array_pack(spectrum.get("m/z array"), format_character='d')
             packed_intensity_arr = array_pack(spectrum.get("intensity array"), format_character='f')
@@ -138,11 +139,12 @@ def parse_precursor(mzml_file):
     return pd.DataFrame(precursor_list)
 
 
-def parse_ranges(mzml_file):
+def parse_ranges(mzml_path):
+    mzml_obj = MzML(mzml_path)
     def get_deltas(times): return [times[i]-times[i-1] for i in range(1, len(times))] or [0]
 
     ranges_dict = {}
-    for spectrum in mzml_file:
+    for spectrum in mzml_obj:
         if spectrum.get("ms level", 0) > 1:
             _, iso_window_lower, iso_window_upper = get_isolation_windows(precursor_list=spectrum.get("precursorList"))[0]
             range_ = (iso_window_lower, iso_window_upper)
